@@ -15,20 +15,20 @@ def GetChainType(v, j, c):
 		s = j
 	else:
 		return -1
-	
-	if (s[0:3] == "IGH"):
+
+	if s[:3] == "IGH":
 		return 0
-	elif (s[0:3] == "IGK"):
+	elif s[:3] == "IGK":
 		return 1
-	elif (s[0:3] == "IGL"):
+	elif s[:3] == "IGL":
 		return 2
-	elif (s[0:3] == "TRA"):
+	elif s[:3] == "TRA":
 		return 3
-	elif (s[0:3] == "TRB"):
+	elif s[:3] == "TRB":
 		return 4
-	elif (s[0:3] == "TRG"):
+	elif s[:3] == "TRG":
 		return 5
-	elif (s[0:3] == "TRD"):
+	elif s[:3] == "TRD":
 		return 6
 	else:
 		return -1
@@ -50,10 +50,7 @@ def CompatibleGeneAssignment(a, b):
 def GetSimilarity(a, b):
 	if (len(a) != len(b)):
 		return 0
-	sameCnt = 0
-	for i in range(len(a)):
-		if (a[i] == b[i]):
-			sameCnt += 1
+	sameCnt = sum(1 for i in range(len(a)) if (a[i] == b[i]))
 	return sameCnt / len(a)
 
 def CompatibleSequence(a, b, similarity):
@@ -79,7 +76,7 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 	clusterIdToName = []
 	clusterRepresentativeId = {}
 	clusterRepresentativeAbund = {}
-	
+
 	if (len(rawCdr3List) == 0):
 		return
 	cdr3List = sorted(rawCdr3List, key=lambda x:(x[0], x[8]))
@@ -116,15 +113,10 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 			vjCDR3LenList[key] = []
 		vjCDR3LenList[key].append(i)
 		i += 1
-	# Prepare the set-union
-	father = []
-	for cdr3 in cdr3List:
-		father.append(clusterRepresentativeId[cdr3[0]])
-	
+	father = [clusterRepresentativeId[cdr3[0]] for cdr3 in cdr3List]
 	# Build up the set-union relation
 	if (mode == "aggressive"):
-		for key in vjCDR3LenList.keys():
-			cdr3IdList = vjCDR3LenList[key]
+		for cdr3IdList in vjCDR3LenList.values():
 			size = len( cdr3IdList )
 			for i in range(size):
 				fi = GetFather(cdr3IdList[i], father)
@@ -138,7 +130,7 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 						#	print(j, cdr3List[cdr3IdList[j]])
 						father[fj] = fi
 	elif (mode == "center"):
-		for key in vjCDR3LenList.keys():
+		for key in vjCDR3LenList:
 			rawCdr3IdList = vjCDR3LenList[key][:]
 			cdr3IdList = sorted(rawCdr3IdList, key=
 					lambda x: (clusterRepresentativeAbund[cdr3List[x][0]], cdr3List[x][10]), reverse=True)
@@ -162,8 +154,7 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 	largerClusterToId = []
 	largerClusterToClusterName = []
 	rootToLargerClusterId = {}
-	i = 0 
-	for cdr3 in cdr3List:
+	for i, cdr3 in enumerate(cdr3List):
 		root = GetFather(i, father)
 		lcId = 0
 		if (root not in rootToLargerClusterId):
@@ -176,8 +167,6 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 
 		largerClusterToId[lcId].append(i)
 		largerClusterToClusterName[lcId].add(cdr3[0])
-		i += 1		
-	
 	# Output the result
 	# Output the composition of larger cluster
 	#for i in range(len(largerClusterToId)):
@@ -185,18 +174,15 @@ def LargerCluster(rawCdr3List, similarity, prefix, useRepresentative, mode):
 	#	for name in largerClusterToClusterName[i]:
 	#		print("\t" + name, end = "")
 	#	print("\n", end = "")
-	
+
 	# Output the new cdr3 format with new larger cluster Id.
 	for i in range(len(largerClusterToId)):
-		j = 0
-		for cdr3Id in largerClusterToId[i]:
+		for j, cdr3Id in enumerate(largerClusterToId[i]):
 			cdr3List[cdr3Id].append(cdr3List[cdr3Id][0])
 			cdr3List[cdr3Id].append(cdr3List[cdr3Id][1])
-			cdr3List[cdr3Id][0] = prefix + "_" + str(i) #+ "_" + cdr3List[cdr3Id][0] + "_" + str(cdr3List[cdr3Id][1])
+			cdr3List[cdr3Id][0] = f"{prefix}_{str(i)}"
 			cdr3List[cdr3Id][1] = j
 			print( "\t".join( str(x) for x in cdr3List[cdr3Id] ) )
-			j += 1
-
 	return 
 
 
@@ -240,46 +226,42 @@ if (__name__ == "__main__"):
 			exit(1)
 		i += 1
 
-	fp = open(sys.argv[1])
-	lineCnt = 0
-	for line in fp:
-		line = line.rstrip()
-		cols = line.split("\t")
-		if (inputFormat == "cdr3"):
-			cols[1] = int(cols[1])
-			skip = False
-			for g in [2, 4]: # Must have V, J genes.
-				if ( cols[g] == "*"):
-					skip = True 
-			if (float(cols[9]) == 0):
-				skip = True
-			if ( skip ):
-				continue 
-			for	g in [2, 3, 4, 5]:
-				cols[g] = cols[g].split(",")[0]
-			cols[9] = float(cols[9])
-			cols[10] = float(cols[10])
-			if (cols[9] == 0):
-				continue
-		elif (inputFormat == "simplerep"):
-			if (line[0] == "#"):
-				continue
-			if ("_" in cols[3] or "?" in cols[3]):
-				continue
-			for g in [4, 6]: # Must have V, J genes.
-				if ( cols[g] == "*"):
-					skip = True 
-			reformat = [0] * 11
-			reformat[0] = "line" + str(lineCnt)
-			reformat[1] = 0
-			for	g in [4, 5, 6, 7]:
-				reformat[g - 2] = cols[g]	
-			reformat[6] = reformat[7] = "*"
-			reformat[8] = cols[2]
-			reformat[9] = 1
-			reformat[10] = cols[0]
-			cols = reformat[:]
-		cdr3List.append(cols)
-		lineCnt += 1
-	fp.close()
+	with open(sys.argv[1]) as fp:
+		lineCnt = 0
+		for line in fp:
+			line = line.rstrip()
+			cols = line.split("\t")
+			if inputFormat == "cdr3":
+				cols[1] = int(cols[1])
+				skip = any(( cols[g] == "*") for g in [2, 4])
+				if (float(cols[9]) == 0):
+					skip = True
+				if ( skip ):
+					continue
+				for	g in [2, 3, 4, 5]:
+					cols[g] = cols[g].split(",")[0]
+				cols[9] = float(cols[9])
+				cols[10] = float(cols[10])
+				if (cols[9] == 0):
+					continue
+			elif inputFormat == "simplerep":
+				if (line[0] == "#"):
+					continue
+				if ("_" in cols[3] or "?" in cols[3]):
+					continue
+				for g in [4, 6]: # Must have V, J genes.
+					if ( cols[g] == "*"):
+						skip = True
+				reformat = [0] * 11
+				reformat[0] = f"line{str(lineCnt)}"
+				reformat[1] = 0
+				for	g in [4, 5, 6, 7]:
+					reformat[g - 2] = cols[g]
+				reformat[6] = reformat[7] = "*"
+				reformat[8] = cols[2]
+				reformat[9] = 1
+				reformat[10] = cols[0]
+				cols = reformat[:]
+			cdr3List.append(cols)
+			lineCnt += 1
 	LargerCluster(cdr3List, similarity, prefix, useRepresentative, mode)

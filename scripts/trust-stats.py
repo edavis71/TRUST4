@@ -10,28 +10,28 @@ chainOrder = ["IGH", "IGK", "IGL", "TRA", "TRB", "TRG", "TRD"]
 
 def GetChainType(v, j, c):
 	s = ""
-	if (c != "*" and c != "."):
-		s = c 
-	elif (j != "*" and j != "."):
+	if c not in ["*", "."]:
+		s = c
+	elif j not in ["*", "."]:
 		s = j
-	elif (v != "*" and v != "."):
+	elif v not in ["*", "."]:
 		s = v
 	else:
 		return -1
-	
-	if (s[0:3] == "IGH"):
+
+	if s[:3] == "IGH":
 		return (0, isotypeRanks[c])
-	elif (s[0:3] == "IGK"):
+	elif s[:3] == "IGK":
 		return 1
-	elif (s[0:3] == "IGL"):
+	elif s[:3] == "IGL":
 		return 2
-	elif (s[0:3] == "TRA"):
+	elif s[:3] == "TRA":
 		return 3
-	elif (s[0:3] == "TRB"):
+	elif s[:3] == "TRB":
 		return 4
-	elif (s[0:3] == "TRG"):
+	elif s[:3] == "TRG":
 		return 5
-	elif (s[0:3] == "TRD"):
+	elif s[:3] == "TRD":
 		return 6
 	else:
 		return -1
@@ -40,24 +40,21 @@ def ComputeRichness(rep):
 	return len(rep)
 
 def ComputeCPK(rep):
-	if (len(rep) == 0):
-		return "NA"
-	return len(rep) / sum(list(rep.values())) * 1000
+	return "NA" if (len(rep) == 0) else len(rep) / sum(list(rep.values())) * 1000
 
 def ComputeEntropy(rep):
 	if (len(rep) == 0):
 		return "NA"
 	total = sum(list(rep.values()))
-	return sum([-x/total*math.log(x/total) for x in rep.values()]) 
+	return sum(-x/total*math.log(x/total) for x in rep.values()) 
 
 def ComputeClonality(rep):
-	if (len(rep) <= 1):
-		return "NA"
-	return 1 - ComputeEntropy(rep) / math.log(len(rep))
+	return (
+		"NA" if (len(rep) <= 1) else 1 - ComputeEntropy(rep) / math.log(len(rep))
+	)
 
 def OutputChain(rep, name):
-	outputList = [name]
-	outputList.append(sum(list(rep.values())))
+	outputList = [name, sum(list(rep.values()))]
 	outputList.append(ComputeRichness(rep))
 	outputList.append(ComputeCPK(rep))
 	outputList.append(ComputeEntropy(rep))
@@ -87,44 +84,40 @@ if (__name__ == "__main__"):
 	parser.add_argument("--ntaa", help="Use nucleotide(nt) or amino acids(aa)", dest="ntaa", default="aa")
 	args = parser.parse_args()
 
-	immrep = {}
-	for i in range(10):
-		immrep[(0, i)] = {}
+	immrep = {(0, i): {} for i in range(10)}
 	for i in range(1, 7):
 		immrep[i] = {}
 
-	fp = open(args.repfile)
-	if (args.format == "TRUST4_report"):
-		for line in fp:
-			if (line[0] == "#" or line[0:5] == "count"):
-				continue
-			cols = line.rstrip().split()
-			chainType = GetChainType(cols[4], cols[6], cols[7])
-			if ("_" in cols[3] or cols[3] == "partial" or "?" in cols[3] or 
-				chainType == -1):
-				continue
-			if (cols[3] not in immrep[chainType]):
-				immrep[chainType][cols[3]] = 0
-			immrep[chainType][cols[3]] += int(cols[0])
-	elif (args.format == "TRUST4_barcode_report"):
-		for line in fp:
-			if (line[0] == "#" or line[0:5] == "count"):
-				continue
-			mainCols = line.rstrip().split()
-			for i in [2, 3]:
-				if (mainCols[i] == "*"):
+	with open(args.repfile) as fp:
+		if (args.format == "TRUST4_report"):
+			for line in fp:
+				if line[0] == "#" or line[:5] == "count":
 					continue
-				cols = mainCols[i].split(",")
-				chainType = GetChainType(cols[0], cols[2], cols[3])
-				if ("_" in cols[5] or cols[5] == "partial" or "?" in cols[5] or
-						chainType == -1):
+				cols = line.rstrip().split()
+				chainType = GetChainType(cols[4], cols[6], cols[7])
+				if ("_" in cols[3] or cols[3] == "partial" or "?" in cols[3] or 
+					chainType == -1):
 					continue
-				if (cols[5] not in immrep[chainType]):
-					immrep[chainType][cols[5]] = 0
-				immrep[chainType][cols[5]] += 1
-	else:
-		print("Unknown format " + args.format)
-		sys.exit(1)
-	fp.close()
-
+				if (cols[3] not in immrep[chainType]):
+					immrep[chainType][cols[3]] = 0
+				immrep[chainType][cols[3]] += int(cols[0])
+		elif (args.format == "TRUST4_barcode_report"):
+			for line in fp:
+				if line[0] == "#" or line[:5] == "count":
+					continue
+				mainCols = line.rstrip().split()
+				for i in [2, 3]:
+					if (mainCols[i] == "*"):
+						continue
+					cols = mainCols[i].split(",")
+					chainType = GetChainType(cols[0], cols[2], cols[3])
+					if ("_" in cols[5] or cols[5] == "partial" or "?" in cols[5] or
+							chainType == -1):
+						continue
+					if (cols[5] not in immrep[chainType]):
+						immrep[chainType][cols[5]] = 0
+					immrep[chainType][cols[5]] += 1
+		else:
+			print(f"Unknown format {args.format}")
+			sys.exit(1)
 	ProcessImmuneRepertoire(immrep) 
